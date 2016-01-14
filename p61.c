@@ -404,10 +404,16 @@ static ssize_t p61_dev_read(struct file *filp, char *buf, size_t count,
             }
             while (1)
             {
+                ret = 0;
                 P61_DBG_MSG(" %s waiting for interrupt \n", __FUNCTION__);
                 p61_dev->irq_enabled = true;
                 enable_irq(p61_dev->spi->irq);
-                ret = wait_event_interruptible(p61_dev->read_wq,!p61_dev->irq_enabled);
+                /*If IRQ line is already high, which means IRQ was high
+                just before enabling the interrupt, skip waiting for interrupt,
+                as interrupt would have been disabled by then in the interrupt handler*/
+                if (!gpio_get_value(p61_dev->irq_gpio)){
+                    ret = wait_event_interruptible(p61_dev->read_wq,!p61_dev->irq_enabled);
+                }
                 p61_disable_irq(p61_dev);
                 if (ret)
                 {
