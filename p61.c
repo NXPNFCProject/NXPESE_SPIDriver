@@ -41,6 +41,11 @@
 #include <linux/poll.h>
 #include <linux/regulator/consumer.h>
 #include <linux/nfc/p61.h>
+#include <linux/nfc/pn5xx_i2c.h>
+
+extern long  pn5xx_dev_ioctl(struct file *filp, unsigned int cmd,
+        unsigned long arg);
+
 #define DRAGON_P61 0
 
 /* Device driver's configuration macro */
@@ -59,7 +64,7 @@ static struct regulator *p61_regulator = NULL;
 
 #define P61_IRQ   33 /* this is the same used in omap3beagle.c */
 #define P61_RST  138
-
+#define P61_POLL_TIMEOUT 2*1000 /*max 2 seconds*/
 /* Macro to define SPI clock frequency */
 
 //#define P61_SPI_CLOCK_7Mzh
@@ -219,10 +224,27 @@ static long p61_dev_ioctl(struct file *filp, unsigned int cmd,
             p61_dev->enable_poll_mode = 1;
         }
         break;
+    case P61_SET_SPM_PWR:
+        P61_DBG_MSG(KERN_ALERT " P61_SET_SPM_PWR: enter");
+        ret = pn5xx_dev_ioctl(filp, P61_SET_SPI_PWR, arg);
+        P61_DBG_MSG(KERN_ALERT " P61_SET_SPM_PWR: exit");
+    break;
+    case P61_GET_SPM_STATUS:
+        P61_DBG_MSG(KERN_ALERT " P61_GET_SPM_STATUS: enter");
+        ret = pn5xx_dev_ioctl(filp, P61_GET_PWR_STATUS, arg);
+        P61_DBG_MSG(KERN_ALERT " P61_GET_SPM_STATUS: exit");
+    break;
+    case P61_GET_ESE_ACCESS:
+        P61_DBG_MSG(KERN_ALERT " P61_GET_ESE_ACCESS: enter");
+        ret = pn5xx_dev_ioctl(filp, PN5XX_GET_ESE_ACCESS, arg);
+        P61_DBG_MSG(KERN_ALERT " P61_GET_ESE_ACCESS ret: %d exit",ret);
+    break;
     default:
+        P61_DBG_MSG(KERN_ALERT " Error case");
         ret = -EINVAL;
     }
 
+    P61_DBG_MSG(KERN_ALERT "p61_dev_ioctl-exit %u arg = %ld\n", cmd, arg);
     return ret;
 }
 
@@ -353,6 +375,7 @@ static ssize_t p61_dev_read(struct file *filp, char *buf, size_t count,
     struct p61_dev *p61_dev = filp->private_data;
     unsigned char sof = 0x00;
     int total_count = 0;
+    int sof_counter = 0;/* one read may take 1 ms*/
     unsigned char rx_buffer[MAX_BUFFER_SIZE];
 
     P61_DBG_MSG("p61_dev_read count %d - Enter \n", count);
@@ -377,6 +400,7 @@ static ssize_t p61_dev_read(struct file *filp, char *buf, size_t count,
         do
         {
             sof = 0x00;
+            sof_counter++;
             P61_DBG_MSG(KERN_INFO"SPI_READ returned 0x%x", sof);
             ret = spi_read(p61_dev->spi, (void *)&sof, 1);
             if (0 > ret)
@@ -389,7 +413,13 @@ static ssize_t p61_dev_read(struct file *filp, char *buf, size_t count,
             /* RC put the conditional delay only if SOF not received */
             if (sof != SOF)
             usleep_range(1000,1500);//msleep(5);
-        }while(sof != SOF);
+        }while((sof != SOF) && (sof_counter < P61_POLL_TIMEOUT));
+        if (sof != SOF)
+        {
+            P61_ERR_MSG(KERN_ALERT "spi_read SOF timeout \n");
+            ret = -ETIME;
+            goto fail;
+        }
     }
     else
     {
@@ -565,7 +595,8 @@ static int p61_hw_setup(struct p61_spi_platform_data *platform_data,
         goto fail_gpio;
     }
 
-    ret = gpio_direction_output(platform_data->rst_gpio,0);
+    /*soft reset gpio is set to default high*/
+    ret = gpio_direction_output(platform_data->rst_gpio,1);
     if (ret < 0)
     {
         P61_ERR_MSG("gpio rst request failed gpio = 0x%x\n", platform_data->rst_gpio);
@@ -760,8 +791,8 @@ static int __devinit p61_probe(struct spi_device *spi)
          * for reading.  it is cleared when all data has been read.
          */
     p61_dev->irq_enabled = true;
-    irq_flags = IRQF_TRIGGER_RISING | IRQF_ONESHOT;
-
+    /*irq_flags = IRQF_TRIGGER_RISING | IRQF_ONESHOT;*/
+    irq_flags = IRQF_TRIGGER_HIGH;
     ret = request_irq(p61_dev->spi->irq, p61_dev_irq_handler,
                           irq_flags, p61_dev -> p61_device.name, p61_dev);
     if (ret)
