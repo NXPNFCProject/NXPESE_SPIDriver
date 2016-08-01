@@ -32,7 +32,10 @@
 */
 #define P61_GET_SPM_STATUS    _IOR(P61_MAGIC, 0x05, unsigned int)
 
+#define P61_SET_THROUGHPUT    _IOW(P61_MAGIC, 0x06, unsigned int)
 #define P61_GET_ESE_ACCESS    _IOW(P61_MAGIC, 0x07, unsigned int)
+
+#define P61_SET_POWER_SCHEME  _IOW(P61_MAGIC, 0x08, unsigned int)
 
 struct p61_spi_platform_data {
     unsigned int irq_gpio;

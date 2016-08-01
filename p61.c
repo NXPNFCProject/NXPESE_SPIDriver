@@ -69,11 +69,16 @@ static struct regulator *p61_regulator = NULL;
 
 //#define P61_SPI_CLOCK_7Mzh
 #undef P61_SPI_CLOCK_7Mzh
+#define P61_SPI_CLOCK_8Mzh
 
 #ifdef P61_SPI_CLOCK_7Mzh
 #define P61_SPI_CLOCK     7000000L;
 #else
+#ifdef P61_SPI_CLOCK_8Mzh
+#define P61_SPI_CLOCK     8000000L;
+#else
 #define P61_SPI_CLOCK     4000000L;
+#endif
 #endif
 
 /* size of maximum read/write buffer supported by driver */
@@ -85,6 +90,9 @@ enum P61_DEBUG_LEVEL {
     P61_FULL_DEBUG
 };
 
+#define READ_THROUGH_PUT 0x01
+#define WRITE_THROUGH_PUT 0x02
+#define MXAX_THROUGH_PUT_TIME 999000L
 /* Variable to store current debug level request by ioctl */
 static unsigned char debug_level;
 
@@ -119,7 +127,92 @@ struct p61_dev {
 
 /* T==1 protocol specific global data */
 const unsigned char SOF = 0xA5u;
+struct p61_through_put {
+    struct timeval rstart_tv;
+    struct timeval rstop_tv;
+    struct timeval wstart_tv;
+    struct timeval wstop_tv;
+    unsigned long total_through_put_wbytes;
+    unsigned long total_through_put_rbytes;
+    unsigned long  total_through_put_rtime;
+    unsigned long total_through_put_wtime;
+    bool enable_through_put_measure;
+};
+static struct p61_through_put p61_through_put_t;
 
+static void p61_start_throughput_measurement(unsigned int type);
+static void p61_stop_throughput_measurement(unsigned int type, int no_of_bytes);
+
+static void p61_start_throughput_measurement(unsigned int type)
+{
+    if (type == READ_THROUGH_PUT)
+    {
+        memset(&p61_through_put_t.rstart_tv, 0x00, sizeof(struct timeval));
+        do_gettimeofday(&p61_through_put_t.rstart_tv);
+    }
+    else if (type == WRITE_THROUGH_PUT)
+    {
+        memset(&p61_through_put_t.wstart_tv, 0x00, sizeof(struct timeval));
+        do_gettimeofday(&p61_through_put_t.wstart_tv);
+
+    }
+    else
+    {
+        P61_DBG_MSG(KERN_ALERT " p61_start_throughput_measurement: wrong type = %d", type);
+    }
+
+}
+static void p61_stop_throughput_measurement(unsigned int type, int no_of_bytes)
+{
+    if (type == READ_THROUGH_PUT)
+    {
+        memset(&p61_through_put_t.rstop_tv, 0x00, sizeof(struct timeval));
+        do_gettimeofday(&p61_through_put_t.rstop_tv);
+        p61_through_put_t.total_through_put_rbytes += no_of_bytes;
+        p61_through_put_t.total_through_put_rtime += (p61_through_put_t.rstop_tv.tv_usec -
+                                                     p61_through_put_t.rstart_tv.tv_usec) +
+                                                     ((p61_through_put_t.rstop_tv.tv_sec -
+                                                     p61_through_put_t.rstart_tv.tv_sec) * 1000000);
+
+        if(p61_through_put_t.total_through_put_rtime >= MXAX_THROUGH_PUT_TIME)
+        {
+            printk(KERN_ALERT " **************** Read Throughput: **************");
+            printk(KERN_ALERT " No of Read Bytes = %ld", p61_through_put_t.total_through_put_rbytes);
+            printk(KERN_ALERT " Total Read Time (uSec) = %ld", p61_through_put_t.total_through_put_rtime);
+            p61_through_put_t.total_through_put_rbytes = 0;
+            p61_through_put_t.total_through_put_rtime = 0;
+            printk(KERN_ALERT " **************** Read Throughput: **************");
+        }
+	printk(KERN_ALERT " No of Read Bytes = %ld", p61_through_put_t.total_through_put_rbytes);
+	printk(KERN_ALERT " Total Read Time (uSec) = %ld", p61_through_put_t.total_through_put_rtime);
+    }
+    else if (type == WRITE_THROUGH_PUT)
+    {
+        memset(&p61_through_put_t.wstop_tv, 0x00, sizeof(struct timeval));
+        do_gettimeofday(&p61_through_put_t.wstop_tv);
+        p61_through_put_t.total_through_put_wbytes += no_of_bytes;
+        p61_through_put_t.total_through_put_wtime += (p61_through_put_t.wstop_tv.tv_usec -
+                                                     p61_through_put_t.wstart_tv.tv_usec) +
+                                                     ((p61_through_put_t.wstop_tv.tv_sec -
+                                                     p61_through_put_t.wstart_tv.tv_sec) * 1000000);
+
+        if(p61_through_put_t.total_through_put_wtime >= MXAX_THROUGH_PUT_TIME)
+        {
+            printk(KERN_ALERT " **************** Write Throughput: **************");
+            printk(KERN_ALERT " No of Write Bytes = %ld", p61_through_put_t.total_through_put_wbytes);
+            printk(KERN_ALERT " Total Write Time (uSec) = %ld", p61_through_put_t.total_through_put_wtime);
+            p61_through_put_t.total_through_put_wbytes = 0;
+            p61_through_put_t.total_through_put_wtime = 0;
+            printk(KERN_ALERT " **************** WRITE Throughput: **************");
+        }
+        printk(KERN_ALERT " No of Write Bytes = %ld", p61_through_put_t.total_through_put_wbytes);
+	printk(KERN_ALERT " Total Write Time (uSec) = %ld", p61_through_put_t.total_through_put_wtime);
+    }
+    else
+    {
+        printk(KERN_ALERT " p61_stop_throughput_measurement: wrong type = %d", type);
+    }
+}
 /**
  * \ingroup spi_driver
  * \brief Called from SPI LibEse to initilaize the P61 device
@@ -234,10 +327,19 @@ static long p61_dev_ioctl(struct file *filp, unsigned int cmd,
         ret = pn5xx_dev_ioctl(filp, P61_GET_PWR_STATUS, arg);
         P61_DBG_MSG(KERN_ALERT " P61_GET_SPM_STATUS: exit");
     break;
+    case P61_SET_THROUGHPUT:
+        p61_through_put_t.enable_through_put_measure = true;
+        P61_DBG_MSG(KERN_INFO"[NXP-P61] -  P61_SET_THROUGHPUT enable %d", p61_through_put_t.enable_through_put_measure);
+        break;
     case P61_GET_ESE_ACCESS:
         P61_DBG_MSG(KERN_ALERT " P61_GET_ESE_ACCESS: enter");
         ret = pn5xx_dev_ioctl(filp, PN5XX_GET_ESE_ACCESS, arg);
         P61_DBG_MSG(KERN_ALERT " P61_GET_ESE_ACCESS ret: %d exit",ret);
+    break;
+    case P61_SET_POWER_SCHEME:
+        P61_DBG_MSG(KERN_ALERT " P61_SET_POWER_SCHEME: enter");
+        ret = pn5xx_dev_ioctl(filp, PN5XX_SET_POWER_SCHEME, arg);
+        P61_DBG_MSG(KERN_ALERT " P61_SET_POWER_SCHEME ret: %d exit",ret);
     break;
     default:
         P61_DBG_MSG(KERN_ALERT " Error case");
@@ -284,6 +386,8 @@ static ssize_t p61_dev_write(struct file *filp, const char *buf, size_t count,
         mutex_unlock(&p61_dev->write_mutex);
         return -EFAULT;
     }
+    if(p61_through_put_t.enable_through_put_measure)
+        p61_start_throughput_measurement(WRITE_THROUGH_PUT);
     /* Write data */
     ret = spi_write(p61_dev->spi, &tx_buffer[0], count);
     if (ret < 0)
@@ -293,6 +397,8 @@ static ssize_t p61_dev_write(struct file *filp, const char *buf, size_t count,
     else
     {
         ret = count;
+        if(p61_through_put_t.enable_through_put_measure)
+            p61_stop_throughput_measurement(WRITE_THROUGH_PUT, ret);
     }
 
     mutex_unlock(&p61_dev->write_mutex);
@@ -489,6 +595,9 @@ static ssize_t p61_dev_read(struct file *filp, char *buf, size_t count,
     count = rx_buffer[2];
     P61_DBG_MSG(KERN_INFO"Data Lenth = %d", count);
     /* Read the availabe data along with one byte LRC */
+
+    if(p61_through_put_t.enable_through_put_measure)
+        p61_start_throughput_measurement(READ_THROUGH_PUT);
     ret = spi_read(p61_dev->spi, (void *)&rx_buffer[3], (count+1));
     if (ret < 0)
     {
@@ -497,6 +606,9 @@ static ssize_t p61_dev_read(struct file *filp, char *buf, size_t count,
         goto fail;
     }
     total_count = (total_count + (count+1));
+
+    if(p61_through_put_t.enable_through_put_measure)
+        p61_stop_throughput_measurement (READ_THROUGH_PUT, total_count);
     P61_DBG_MSG(KERN_INFO"total_count = %d", total_count);
 
     if (copy_to_user(buf, &rx_buffer[0], total_count))
@@ -791,6 +903,7 @@ static int __devinit p61_probe(struct spi_device *spi)
          * for reading.  it is cleared when all data has been read.
          */
     p61_dev->irq_enabled = true;
+    p61_through_put_t.enable_through_put_measure = false;
     /*irq_flags = IRQF_TRIGGER_RISING | IRQF_ONESHOT;*/
     irq_flags = IRQF_TRIGGER_HIGH;
     ret = request_irq(p61_dev->spi->irq, p61_dev_irq_handler,
