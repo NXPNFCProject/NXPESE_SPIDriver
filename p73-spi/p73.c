@@ -69,7 +69,8 @@ static struct regulator *p61_regulator = NULL;
 
 //#define P61_SPI_CLOCK_7Mzh
 #undef P61_SPI_CLOCK_7Mzh
-#define P61_SPI_CLOCK_8Mzh
+#undef P61_SPI_CLOCK_8Mzh
+#define P61_SPI_CLOCK_20Mzh
 
 #ifdef P61_SPI_CLOCK_7Mzh
 #define P61_SPI_CLOCK     7000000L;
@@ -77,7 +78,11 @@ static struct regulator *p61_regulator = NULL;
 #ifdef P61_SPI_CLOCK_8Mzh
 #define P61_SPI_CLOCK     8000000L;
 #else
+#ifdef P61_SPI_CLOCK_20Mzh
+#define P61_SPI_CLOCK     20000000L;
+#else
 #define P61_SPI_CLOCK     4000000L;
+#endif
 #endif
 #endif
 
@@ -805,7 +810,7 @@ static int p61_probe(struct spi_device *spi)
     }
 
     spi->bits_per_word = 8;
-    spi->mode = SPI_MODE_0;
+    spi->mode = SPI_MODE_1;
     spi->max_speed_hz = P61_SPI_CLOCK;
     //spi->chip_select = SPI_NO_CS;
     ret = spi_setup(spi);
