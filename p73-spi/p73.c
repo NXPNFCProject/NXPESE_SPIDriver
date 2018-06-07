@@ -69,9 +69,13 @@ static struct regulator *p61_regulator = NULL;
 
 //#define P61_SPI_CLOCK_7Mzh
 #undef P61_SPI_CLOCK_7Mzh
+#define P61_SPI_CLOCK_13_3_Mzh
 #undef P61_SPI_CLOCK_8Mzh
-#define P61_SPI_CLOCK_20Mzh
+#undef P61_SPI_CLOCK_20Mzh
 
+#ifdef P61_SPI_CLOCK_13_3_Mzh
+#define P61_SPI_CLOCK 13300000L;
+#else
 #ifdef P61_SPI_CLOCK_7Mzh
 #define P61_SPI_CLOCK     7000000L;
 #else
@@ -85,9 +89,10 @@ static struct regulator *p61_regulator = NULL;
 #endif
 #endif
 #endif
+#endif
 
 /* size of maximum read/write buffer supported by driver */
-#define MAX_BUFFER_SIZE   258U
+#define MAX_BUFFER_SIZE   768U
 
 /* Different driver debug lever */
 enum P61_DEBUG_LEVEL {
@@ -549,7 +554,7 @@ static ssize_t p61_dev_read(struct file *filp, char *buf, size_t count,
             }
         }
 #else
-    P61_ERR_MSG(" %s P61_IRQ_ENABLE not Enabled \n", __FUNCTION__);
+    P61_DBG_MSG(" %s P61_IRQ_ENABLE not Enabled \n", __FUNCTION__);
 #endif
         ret = spi_read(p61_dev->spi, (void *)&rx_buffer[0], count);
         if (0 > ret)
@@ -810,7 +815,7 @@ static int p61_probe(struct spi_device *spi)
     }
 
     spi->bits_per_word = 8;
-    spi->mode = SPI_MODE_1;
+    spi->mode = SPI_MODE_0;
     spi->max_speed_hz = P61_SPI_CLOCK;
     //spi->chip_select = SPI_NO_CS;
     ret = spi_setup(spi);
@@ -964,7 +969,7 @@ static struct spi_driver p61_driver = {
 
 static int __init p61_dev_init(void)
 {
-    debug_level = P61_FULL_DEBUG;
+    debug_level = P61_DEBUG_OFF;
 
     P61_DBG_MSG("Entry : %s\n", __FUNCTION__);
 
