@@ -74,7 +74,8 @@ static struct regulator *p61_regulator = NULL;
 #undef P61_SPI_CLOCK_20Mzh
 
 #ifdef P61_SPI_CLOCK_13_3_Mzh
-#define P61_SPI_CLOCK 13300000L;
+//#define P61_SPI_CLOCK 13300000L;Further debug needed
+#define P61_SPI_CLOCK     19000000L;
 #else
 #ifdef P61_SPI_CLOCK_7Mzh
 #define P61_SPI_CLOCK     7000000L;
