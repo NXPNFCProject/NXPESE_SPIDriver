@@ -69,9 +69,9 @@ static struct regulator *p61_regulator = NULL;
 
 //#define P61_SPI_CLOCK_7Mzh
 #undef P61_SPI_CLOCK_7Mzh
-#define P61_SPI_CLOCK_13_3_Mzh
+#undef P61_SPI_CLOCK_13_3_Mzh
 #undef P61_SPI_CLOCK_8Mzh
-#undef P61_SPI_CLOCK_20Mzh
+#define P61_SPI_CLOCK_20Mzh
 
 #ifdef P61_SPI_CLOCK_13_3_Mzh
 //#define P61_SPI_CLOCK 13300000L;Further debug needed
@@ -93,7 +93,7 @@ static struct regulator *p61_regulator = NULL;
 #endif
 
 /* size of maximum read/write buffer supported by driver */
-#define MAX_BUFFER_SIZE   768U
+#define MAX_BUFFER_SIZE   780U
 
 /* Different driver debug lever */
 enum P61_DEBUG_LEVEL {
