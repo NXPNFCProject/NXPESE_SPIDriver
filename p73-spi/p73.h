@@ -40,6 +40,12 @@
 #define P61_SET_DWNLD_STATUS    _IOW(P61_MAGIC, 0x09, long)
 
 #define P61_INHIBIT_PWR_CNTRL  _IOW(P61_MAGIC, 0x0A, long)
+
+/* SPI can call this IOCTL to perform the eSE COLD_RESET
+ * via NFC driver.
+ */
+#define ESE_PERFORM_COLD_RESET  _IOW(P61_MAGIC, 0x0C, long)
+
 struct p61_spi_platform_data {
     unsigned int irq_gpio;
     unsigned int rst_gpio;
