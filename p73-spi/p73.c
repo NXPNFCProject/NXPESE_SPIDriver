@@ -45,6 +45,7 @@
 
 extern long  pn544_dev_ioctl(struct file *filp, unsigned int cmd,
         unsigned long arg);
+extern long p61_cold_reset(void);
 
 #define DRAGON_P61 1
 
@@ -224,6 +225,7 @@ static void p61_stop_throughput_measurement(unsigned int type, int no_of_bytes)
         printk(KERN_ALERT " p61_stop_throughput_measurement: wrong type = %d", type);
     }
 }
+
 /**
  * \ingroup spi_driver
  * \brief Called from SPI LibEse to initilaize the P61 device
@@ -243,6 +245,7 @@ static int p61_dev_open(struct inode *inode, struct file *filp) {
             p61_device);
 
     filp->private_data = p61_dev;
+
     P61_DBG_MSG(
             "%s : Major No: %d, Minor No: %d\n", __func__, imajor(inode), iminor(inode));
 
@@ -311,7 +314,7 @@ static long p61_dev_ioctl(struct file *filp, unsigned int cmd,
         break;
 
     case P61_SET_DBG:
-        debug_level = (unsigned char )arg;
+        debug_level = (unsigned char ) arg;
         P61_DBG_MSG(KERN_INFO"[NXP-P61] -  Debug level %d", debug_level);
         break;
 
@@ -361,6 +364,9 @@ static long p61_dev_ioctl(struct file *filp, unsigned int cmd,
         P61_DBG_MSG(KERN_ALERT " P61_INHIBIT_PWR_CNTRL: enter");
         ret = pn544_dev_ioctl(filp, P544_SECURE_TIMER_SESSION, arg);
         P61_DBG_MSG(KERN_ALERT " P61_INHIBIT_PWR_CNTRL ret: %d exit", ret);
+    break;
+    case ESE_PERFORM_COLD_RESET:
+        ret = p61_cold_reset();
     break;
     default:
         P61_DBG_MSG(KERN_ALERT " Error case");
@@ -678,7 +684,6 @@ static int p61_hw_setup(struct p61_spi_platform_data *platform_data,
         goto fail_gpio;
     }
 
-
     ret = 0;
     P61_DBG_MSG("Exit : %s\n", __FUNCTION__);
     return ret;
@@ -833,7 +838,6 @@ static int p61_probe(struct spi_device *spi)
     p61_dev -> p61_device.parent = &spi->dev;
     p61_dev->irq_gpio = platform_data->irq_gpio;
     p61_dev->rst_gpio  = platform_data->rst_gpio;
-
 
     dev_set_drvdata(&spi->dev, p61_dev);
 
