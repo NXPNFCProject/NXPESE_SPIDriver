@@ -56,6 +56,7 @@ static ssize_t ese_dev_read(struct file *filp, char __user *ubuf,
     if (len > MAX_BUFFER_SIZE) {
         len = MAX_BUFFER_SIZE;
     }
+    pr_debug("%s: start reading of %zu bytes\n", __func__, len);
     memset(rx_buf, 0, sizeof(rx_buf));
     ret = spi_read(ese_dev->spi, rx_buf, len);
     if (0 > ret) {
@@ -69,6 +70,7 @@ static ssize_t ese_dev_read(struct file *filp, char __user *ubuf,
         return -EFAULT;
     }
     mutex_unlock(&ese_dev->mutex);
+    pr_debug("%s: Success in reading %zu bytes\n", __func__, len);
     return ret;
 }
 
@@ -81,6 +83,7 @@ static ssize_t ese_dev_write(struct file *filp, const char __user *ubuf,
     mutex_lock(&ese_dev->write_mutex);
     if (len > MAX_BUFFER_SIZE)
         len = MAX_BUFFER_SIZE;
+    pr_debug("%s: start writing of %zu bytes\n", __func__, len);
     memset(tx_buf, 0, sizeof(tx_buf));
     if (copy_from_user(tx_buf, ubuf, len)) {
         pr_err("%s: failed to copy from user\n", __func__);
@@ -93,6 +96,7 @@ static ssize_t ese_dev_write(struct file *filp, const char __user *ubuf,
         mutex_unlock(&ese_dev->write_mutex);
         return -EIO;
     }
+    pr_debug("%s: Success in writing %zu bytes\n", __func__, len);
     mutex_unlock(&ese_dev->write_mutex);
     return len;
 }
