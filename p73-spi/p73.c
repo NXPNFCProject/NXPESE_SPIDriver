@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2014 NXP Semiconductors
+ * Copyright (C) 2012-2019 NXP Semiconductors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,6 +45,7 @@
 
 extern long  pn544_dev_ioctl(struct file *filp, unsigned int cmd,
         unsigned long arg);
+extern long p61_cold_reset(void);
 
 #define DRAGON_P61 1
 
@@ -361,6 +362,9 @@ static long p61_dev_ioctl(struct file *filp, unsigned int cmd,
         P61_DBG_MSG(KERN_ALERT " P61_INHIBIT_PWR_CNTRL: enter");
         ret = pn544_dev_ioctl(filp, P544_SECURE_TIMER_SESSION, arg);
         P61_DBG_MSG(KERN_ALERT " P61_INHIBIT_PWR_CNTRL ret: %d exit", ret);
+    break;
+    case ESE_PERFORM_COLD_RESET:
+        ret = p61_cold_reset();
     break;
     default:
         P61_DBG_MSG(KERN_ALERT " Error case");

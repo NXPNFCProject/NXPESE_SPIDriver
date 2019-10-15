@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2014 NXP Semiconductors
+ * Copyright (C) 2012-2019 NXP Semiconductors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,6 +40,12 @@
 #define P61_SET_DWNLD_STATUS    _IOW(P61_MAGIC, 0x09, long)
 
 #define P61_INHIBIT_PWR_CNTRL  _IOW(P61_MAGIC, 0x0A, long)
+
+/* SPI can call this IOCTL to perform the eSE COLD_RESET
+ * via NFC driver.
+ */
+#define ESE_PERFORM_COLD_RESET  _IOW(P61_MAGIC, 0x0C, long)
+
 struct p61_spi_platform_data {
     unsigned int irq_gpio;
     unsigned int rst_gpio;
