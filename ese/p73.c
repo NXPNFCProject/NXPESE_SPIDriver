@@ -46,7 +46,7 @@
 #include <linux/regulator/consumer.h>
 #include "p73.h"
 #include "../nfc/cold_reset.h"
-#include "../nfc/nfc_drv.h"
+#include "../nfc/common.h"
 
 
 extern int nfc_ese_pwr(nfc_dev_t *nfc_dev, unsigned long arg);
