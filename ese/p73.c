@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- *  Copyright (C) 2012-2019 NXP Semiconductors
+ *  Copyright (C) 2012-2020 NXP Semiconductors
  *   *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -45,11 +45,12 @@
 #include <linux/poll.h>
 #include <linux/regulator/consumer.h>
 #include "p73.h"
-#include "../pn553-i2c/pn553.h"
+#include "../nfc/cold_reset.h"
+#include "../nfc/nfc_drv.h"
 
-extern long  pn544_dev_ioctl(struct file *filp, unsigned int cmd,
-        unsigned long arg);
-extern long p61_cold_reset(void);
+
+extern int nfc_ese_pwr(nfc_dev_t *nfc_dev, unsigned long arg);
+extern int ese_cold_reset(ese_cold_reset_origin_t src);
 
 #define DRAGON_P61 1
 
@@ -98,7 +99,11 @@ static struct regulator *p61_regulator = NULL;
 #endif
 
 /* size of maximum read/write buffer supported by driver */
+#ifdef MAX_BUFFER_SIZE
+#undef MAX_BUFFER_SIZE
+#endif //MAX_BUFFER_SIZE
 #define MAX_BUFFER_SIZE   780U
+
 
 /* Different driver debug lever */
 enum P61_DEBUG_LEVEL {
@@ -139,6 +144,9 @@ struct p61_dev {
     bool irq_enabled; /* flag to indicate irq is used */
     unsigned char enable_poll_mode; /* enable the poll mode */
     spinlock_t irq_enabled_lock; /*spin lock for read irq */
+    struct device  *nfcc_device; /*nfcc driver handle for driver to driver comm*/
+    struct nfc_dev *nfcc_data;
+    const char     *nfcc_name;
 };
 
 /* T==1 protocol specific global data */
@@ -226,7 +234,7 @@ static void p61_stop_throughput_measurement(unsigned int type, int no_of_bytes)
     }
     else
     {
-        printk(KERN_ALERT " p61_stop_throughput_measurement: wrong type = %d", type);
+        printk(KERN_ALERT " p61_stop_throughput_measurement: wrong type = %u", type);
     }
 }
 
@@ -248,6 +256,27 @@ static int p61_dev_open(struct inode *inode, struct file *filp) {
             struct p61_dev,
             p61_device);
 
+    /* Find the NFC parent device if it exists. */
+    if (p61_dev != NULL &&p61_dev->nfcc_data == NULL) {
+        struct device *nfc_dev = bus_find_device_by_name(
+                    &i2c_bus_type,
+                    NULL,
+                    p61_dev->nfcc_name);
+        if (!nfc_dev) {
+            P61_ERR_MSG("%s: cannot find NFC controller '%s'\n",
+                __func__, p61_dev->nfcc_name);
+            return -ENODEV;
+        }
+        p61_dev->nfcc_data = dev_get_drvdata(nfc_dev);
+        if (!p61_dev->nfcc_data) {
+            P61_ERR_MSG("%s: cannot find NFC controller device data\n",
+                __func__);
+            put_device(nfc_dev);
+            return -ENODEV;
+        }
+        P61_DBG_MSG("%s: NFC controller found\n", __func__);
+        p61_dev->nfcc_device = nfc_dev;
+    }
     filp->private_data = p61_dev;
 
     P61_DBG_MSG(
@@ -337,18 +366,18 @@ static long p61_dev_ioctl(struct file *filp, unsigned int cmd,
         break;
     case P61_SET_SPM_PWR:
         P61_DBG_MSG(KERN_ALERT " P61_SET_SPM_PWR: enter");
-        ret = pn544_dev_ioctl(filp, P61_SET_SPI_PWR, arg);
+        ret = nfc_ese_pwr(p61_dev->nfcc_data, arg);
         P61_DBG_MSG(KERN_ALERT " P61_SET_SPM_PWR: exit");
     break;
     case P61_GET_SPM_STATUS:
         P61_DBG_MSG(KERN_ALERT " P61_GET_SPM_STATUS: enter");
-        ret = pn544_dev_ioctl(filp, P61_GET_PWR_STATUS, arg);
+        ret = nfc_ese_pwr(p61_dev->nfcc_data, ESE_POWER_STATE);
         P61_DBG_MSG(KERN_ALERT " P61_GET_SPM_STATUS: exit");
     break;
     case P61_SET_DWNLD_STATUS:
         P61_DBG_MSG(KERN_ALERT " P61_SET_DWNLD_STATUS: enter");
-        ret = pn544_dev_ioctl(filp, PN544_SET_DWNLD_STATUS, arg);
-        P61_DBG_MSG(KERN_ALERT " P61_SET_DWNLD_STATUS: =%d exit",arg);
+        //ret = nfc_dev_ioctl(filp, PN544_SET_DWNLD_STATUS, arg);
+        P61_DBG_MSG(KERN_ALERT " P61_SET_DWNLD_STATUS: =%lu exit",arg);
     break;
     case P61_SET_THROUGHPUT:
         p61_through_put_t.enable_through_put_measure = true;
@@ -356,28 +385,30 @@ static long p61_dev_ioctl(struct file *filp, unsigned int cmd,
         break;
     case P61_GET_ESE_ACCESS:
         P61_DBG_MSG(KERN_ALERT " P61_GET_ESE_ACCESS: enter");
-        ret = pn544_dev_ioctl(filp, P544_GET_ESE_ACCESS, arg);
+        //ret = nfc_dev_ioctl(filp, P544_GET_ESE_ACCESS, arg);
         P61_DBG_MSG(KERN_ALERT " P61_GET_ESE_ACCESS ret: %d exit",ret);
     break;
     case P61_SET_POWER_SCHEME:
         P61_DBG_MSG(KERN_ALERT " P61_SET_POWER_SCHEME: enter");
-        ret = pn544_dev_ioctl(filp, P544_SET_POWER_SCHEME, arg);
+        //ret = nfc_dev_ioctl(filp, P544_SET_POWER_SCHEME, arg);
         P61_DBG_MSG(KERN_ALERT " P61_SET_POWER_SCHEME ret: %d exit",ret);
     break;
     case P61_INHIBIT_PWR_CNTRL:
         P61_DBG_MSG(KERN_ALERT " P61_INHIBIT_PWR_CNTRL: enter");
-        ret = pn544_dev_ioctl(filp, P544_SECURE_TIMER_SESSION, arg);
+        //ret = nfc_dev_ioctl(filp, P544_SECURE_TIMER_SESSION, arg);
         P61_DBG_MSG(KERN_ALERT " P61_INHIBIT_PWR_CNTRL ret: %d exit", ret);
     break;
     case ESE_PERFORM_COLD_RESET:
-        ret = p61_cold_reset();
+        P61_DBG_MSG(KERN_ALERT " ESE_PERFORM_COLD_RESET: enter");
+        ret = ese_cold_reset(ESE_COLD_RESET_SOURCE_SPI);
+        P61_DBG_MSG(KERN_ALERT " P61_INHIBIT_PWR_CNTRL ret: %d exit", ret);
     break;
     default:
         P61_DBG_MSG(KERN_ALERT " Error case");
         ret = -EINVAL;
     }
 
-    P61_DBG_MSG(KERN_ALERT "p61_dev_ioctl-exit %u arg = %ld\n", cmd, arg);
+    P61_DBG_MSG(KERN_ALERT "p61_dev_ioctl-exit %u arg = %lu\n", cmd, arg);
     return ret;
 }
 
@@ -402,7 +433,7 @@ static ssize_t p61_dev_write(struct file *filp, const char *buf, size_t count,
     struct p61_dev *p61_dev;
     unsigned char tx_buffer[MAX_BUFFER_SIZE];
 
-    P61_DBG_MSG(KERN_ALERT "p61_dev_write -Enter count %d\n", count);
+    P61_DBG_MSG(KERN_ALERT "p61_dev_write -Enter count %zu\n", count);
 
     p61_dev = filp->private_data;
 
@@ -512,7 +543,7 @@ static ssize_t p61_dev_read(struct file *filp, char *buf, size_t count,
     struct p61_dev *p61_dev = filp->private_data;
     unsigned char rx_buffer[MAX_BUFFER_SIZE];
 
-    P61_DBG_MSG("p61_dev_read count %d - Enter \n", count);
+    P61_DBG_MSG("p61_dev_read count %zu - Enter \n", count);
 
     mutex_lock(&p61_dev->read_mutex);
     if (count > MAX_BUFFER_SIZE)
@@ -526,7 +557,7 @@ static ssize_t p61_dev_read(struct file *filp, char *buf, size_t count,
     {
         P61_DBG_MSG(" %s Poll Mode Enabled \n", __FUNCTION__);
 
-        P61_DBG_MSG(KERN_INFO"SPI_READ returned 0x%x", count);
+        P61_DBG_MSG(KERN_INFO"SPI_READ returned 0x%zu", count);
         ret = spi_read(p61_dev->spi, (void *)&rx_buffer[0], count);
         if (0 > ret)
         {
@@ -582,7 +613,7 @@ static ssize_t p61_dev_read(struct file *filp, char *buf, size_t count,
 
     if(p61_through_put_t.enable_through_put_measure)
         p61_stop_throughput_measurement (READ_THROUGH_PUT, count);
-    P61_DBG_MSG(KERN_INFO"total_count = %d", count);
+    P61_DBG_MSG(KERN_INFO"total_count = %zu", count);
 
     if (copy_to_user(buf, &rx_buffer[0], count))
     {
@@ -783,6 +814,7 @@ static int p61_probe(struct spi_device *spi)
     struct p61_spi_platform_data *platform_data = NULL;
     struct p61_spi_platform_data platform_data1;
     struct p61_dev *p61_dev = NULL;
+    struct device_node *of_nfcc_node = spi->dev.of_node;
 #ifdef P61_IRQ_ENABLE
     unsigned int irq_flags;
 #endif
@@ -854,6 +886,15 @@ static int p61_probe(struct spi_device *spi)
 #ifdef P61_IRQ_ENABLE
     spin_lock_init(&p61_dev->irq_enabled_lock);
 #endif
+    ret = of_property_read_string(of_nfcc_node, "nxp,nfcc", &p61_dev->nfcc_name);
+    if (ret < 0) {
+        P61_DBG_MSG("%s: nxp,nfcc invalid or missing in device tree (%d)\n",
+            __func__, ret);
+        goto err_exit0;
+    }
+    P61_DBG_MSG("%s: device tree set '%s' as eSE power controller\n",
+        __func__, p61_dev->nfcc_name);
+
 
     ret = misc_register(&p61_dev->p61_device);
     if (ret < 0)
@@ -891,8 +932,10 @@ static int p61_probe(struct spi_device *spi)
     p61_dev-> enable_poll_mode = 0; /* Default IRQ read mode */
     P61_DBG_MSG("Exit : %s\n", __FUNCTION__);
     return ret;
+#ifdef P61_IRQ_ENABLE
     err_exit1:
     misc_deregister(&p61_dev->p61_device);
+#endif
     err_exit0:
     mutex_destroy(&p61_dev->read_mutex);
     mutex_destroy(&p61_dev->write_mutex);
