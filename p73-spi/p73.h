@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- *  Copyright (C) 2012-2014 NXP Semiconductors
+ *  Copyright (C) 2012-2020 NXP Semiconductors
  *   *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -49,6 +49,8 @@
  * via NFC driver.
  */
 #define ESE_PERFORM_COLD_RESET  _IOW(P61_MAGIC, 0x0C, long)
+
+#define PERFORM_RESET_PROTECTION  _IOW(P61_MAGIC, 0x0D, long)
 
 struct p61_spi_platform_data {
     unsigned int irq_gpio;
