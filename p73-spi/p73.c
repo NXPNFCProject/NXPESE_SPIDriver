@@ -1038,6 +1038,7 @@ static void __exit p61_dev_exit(void)
 module_exit( p61_dev_exit);
 
 MODULE_AUTHOR("BHUPENDRA PAWAR");
+MODULE_ALIAS("spi:p61");
 MODULE_DESCRIPTION("NXP P61 SPI driver");
 MODULE_LICENSE("GPL");
 
