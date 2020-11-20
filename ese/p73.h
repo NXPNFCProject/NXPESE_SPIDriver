@@ -53,6 +53,6 @@
 #define PERFORM_RESET_PROTECTION  _IOW(P61_MAGIC, 0x0D, long)
 
 struct p61_spi_platform_data {
-    unsigned int irq_gpio;
-    unsigned int rst_gpio;
+	unsigned int irq_gpio;
+	unsigned int rst_gpio;
 };
