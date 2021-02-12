@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- *  Copyright (C) 2012-2020 NXP Semiconductors
+ *  Copyright 2012-2021 NXP
  *   *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -721,7 +721,10 @@ fail_irq:
 fail:
 	P61_ERR_MSG("p61_hw_setup failed\n");
 #endif
+
+#if defined(P61_HARD_RESET) || defined(P61_IRQ_ENABLE)
 	return ret;
+#endif
 }
 
 /**
@@ -954,20 +957,21 @@ static int p61_remove(struct spi_device *spi)
 		P61_ERR_MSG("ERROR %s p61_regulator not enabled \n", __func__);
 	}
 #endif
-	gpio_free(p61_dev->rst_gpio);
+        if (p61_dev != NULL) {
+          gpio_free(p61_dev->rst_gpio);
 
 #ifdef P61_IRQ_ENABLE
-	free_irq(p61_dev->spi->irq, p61_dev);
-	gpio_free(p61_dev->irq_gpio);
+          free_irq(p61_dev->spi->irq, p61_dev);
+          gpio_free(p61_dev->irq_gpio);
 #endif
 
-	mutex_destroy(&p61_dev->read_mutex);
-	misc_deregister(&p61_dev->p61_device);
+          mutex_destroy(&p61_dev->read_mutex);
+          misc_deregister(&p61_dev->p61_device);
+          kfree(p61_dev);
+        }
 
-	if (p61_dev != NULL)
-		kfree(p61_dev);
-	P61_DBG_MSG("Exit : %s\n", __FUNCTION__);
-	return 0;
+        P61_DBG_MSG("Exit : %s\n", __FUNCTION__);
+        return 0;
 }
 
 #if DRAGON_P61
