@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- *  Copyright 2012-2021 NXP
+ *  Copyright 2012-2022 NXP
  *   *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -426,6 +426,33 @@ static long p61_dev_ioctl(struct file *filp, unsigned int cmd,
 	return ret;
 }
 
+#ifdef CONFIG_COMPAT
+/**
+ * \ingroup spi_driver
+ * \brief To configure the P61_SET_PWR/P61_SET_DBG/P61_SET_POLL
+ * \n         P61_SET_PWR - hard reset (arg=2), soft reset (arg=1)
+ * \n         P61_SET_DBG - Enable/Disable (based on arg value) the driver logs
+ * \n         P61_SET_POLL - Configure the driver in poll (arg = 1), interrupt (arg = 0) based read operation
+ * \param[in]       struct file *
+ * \param[in]       unsigned int
+ * \param[in]       unsigned long
+ *
+ * \retval 0 if ok.
+ *
+*/
+
+static long p61_dev_compat_ioctl(struct file *filp, unsigned int cmd,
+			  unsigned long arg)
+{
+	int ret = 0;
+	arg = (compat_u64)arg;
+	P61_DBG_MSG(KERN_ALERT "p61_dev_compat_ioctl-Enter %u arg = %ld\n", cmd, arg);
+	pr_debug("%s: cmd = %x arg = %zx\n", __func__, cmd, arg);
+	ret = p61_dev_ioctl(filp, cmd, arg);
+	return ret;
+}
+#endif
+
 /**
  * \ingroup spi_driver
  * \brief Write data to P61 on SPI
@@ -766,6 +793,9 @@ static const struct file_operations p61_dev_fops = {
 	.open = p61_dev_open,
 	.release = ese_dev_release,
 	.unlocked_ioctl = p61_dev_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl = p61_dev_compat_ioctl,
+#endif
 };
 
 #if DRAGON_P61
