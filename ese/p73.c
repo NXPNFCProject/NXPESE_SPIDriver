@@ -247,10 +247,10 @@ static void p61_stop_throughput_measurement(unsigned int type, int no_of_bytes)
 static int ese_dev_release(struct inode *inode, struct file *filp)
 {
 	struct p61_dev *p61_dev = NULL;
-	printk(KERN_ALERT "Enter %s: ESE driver release \n", __func__);
+	P61_DBG_MSG("Enter %s: ESE driver release \n", __func__);
 	p61_dev = filp->private_data;
 	nfc_ese_pwr(p61_dev->nfcc_data, ESE_RST_PROT_DIS);
-	printk(KERN_ALERT "Exit %s: ESE driver release \n", __func__);
+	P61_DBG_MSG("Exit %s: ESE driver release \n", __func__);
 	return 0;
 }
 
