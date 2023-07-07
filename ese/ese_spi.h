@@ -37,7 +37,8 @@
  */
 #define P61_GET_SPM_STATUS _IOR(P61_MAGIC, 0x05, long)
 
-#define P61_SET_THROUGHPUT _IOW(P61_MAGIC, 0x06, long)
+// throughput measurement is deprecated
+// #define P61_SET_THROUGHPUT _IOW(P61_MAGIC, 0x06, long)
 #define P61_GET_ESE_ACCESS _IOW(P61_MAGIC, 0x07, long)
 
 #define P61_SET_POWER_SCHEME _IOW(P61_MAGIC, 0x08, long)

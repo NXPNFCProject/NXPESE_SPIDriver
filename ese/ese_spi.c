@@ -105,10 +105,6 @@ static struct regulator *p61_regulator;
 #endif // MAX_BUFFER_SIZE
 #define MAX_BUFFER_SIZE 780U
 
-#define READ_THROUGH_PUT 0x01
-#define WRITE_THROUGH_PUT 0x02
-#define MXAX_THROUGH_PUT_TIME 999000L
-
 /* Device specific macro and structure */
 struct p61_dev {
 	wait_queue_head_t read_wq;      /* wait queue for read interrupt */
@@ -128,89 +124,6 @@ struct p61_dev {
 
 /* T==1 protocol specific global data */
 const unsigned char SOF = 0xA5u;
-struct p61_through_put {
-	ktime_t rstart_tv;
-	ktime_t rstop_tv;
-	ktime_t wstart_tv;
-	ktime_t wstop_tv;
-	unsigned long total_through_put_wbytes;
-	unsigned long total_through_put_rbytes;
-	unsigned long total_through_put_rtime;
-	unsigned long total_through_put_wtime;
-	bool enable_through_put_measure;
-};
-static struct p61_through_put p61_through_put_t;
-
-static void p61_start_throughput_measurement(unsigned int type);
-static void p61_stop_throughput_measurement(unsigned int type, int no_of_bytes);
-
-static void p61_start_throughput_measurement(unsigned int type)
-{
-	if (type == READ_THROUGH_PUT) {
-		memset(&p61_through_put_t.rstart_tv, 0x00, sizeof(ktime_t));
-		p61_through_put_t.rstart_tv = ktime_get();
-	} else if (type == WRITE_THROUGH_PUT) {
-		memset(&p61_through_put_t.wstart_tv, 0x00, sizeof(ktime_t));
-		p61_through_put_t.wstart_tv = ktime_get();
-
-	} else {
-		pr_alert(" p61_start_throughput_measurement: wrong type = %d", type);
-	}
-}
-
-static void p61_stop_throughput_measurement(unsigned int type,
-																						int no_of_bytes)
-{
-	if (type == READ_THROUGH_PUT) {
-		memset(&p61_through_put_t.rstop_tv, 0x00, sizeof(ktime_t));
-		p61_through_put_t.rstop_tv = ktime_get();
-		p61_through_put_t.total_through_put_rbytes += no_of_bytes;
-		p61_through_put_t.total_through_put_rtime +=
-				(long)ktime_to_ns(ktime_sub(p61_through_put_t.rstop_tv,
-																		p61_through_put_t.rstart_tv)) /
-				1000;
-
-		if (p61_through_put_t.total_through_put_rtime >= MXAX_THROUGH_PUT_TIME) {
-			pr_debug(" **************** Read Throughput: **************");
-			pr_debug(" No of Read Bytes = %ld",
-							 p61_through_put_t.total_through_put_rbytes);
-			pr_debug(" Total Read Time (uSec) = %ld",
-							 p61_through_put_t.total_through_put_rtime);
-			p61_through_put_t.total_through_put_rbytes = 0;
-			p61_through_put_t.total_through_put_rtime = 0;
-			pr_debug(" **************** Read Throughput: **************");
-		}
-		pr_debug(" No of Read Bytes = %ld",
-						 p61_through_put_t.total_through_put_rbytes);
-		pr_debug(" Total Read Time (uSec) = %ld",
-						 p61_through_put_t.total_through_put_rtime);
-	} else if (type == WRITE_THROUGH_PUT) {
-		memset(&p61_through_put_t.wstop_tv, 0x00, sizeof(ktime_t));
-		p61_through_put_t.wstop_tv = ktime_get();
-		p61_through_put_t.total_through_put_wbytes += no_of_bytes;
-		p61_through_put_t.total_through_put_wtime +=
-				(long)ktime_to_ns(ktime_sub(p61_through_put_t.wstop_tv,
-																		p61_through_put_t.wstart_tv)) /
-				1000;
-
-		if (p61_through_put_t.total_through_put_wtime >= MXAX_THROUGH_PUT_TIME) {
-			pr_debug(" **************** Write Throughput: **************");
-			pr_debug(" No of Write Bytes = %ld",
-							 p61_through_put_t.total_through_put_wbytes);
-			pr_debug(" Total Write Time (uSec) = %ld",
-							 p61_through_put_t.total_through_put_wtime);
-			p61_through_put_t.total_through_put_wbytes = 0;
-			p61_through_put_t.total_through_put_wtime = 0;
-			pr_debug(" **************** WRITE Throughput: **************");
-		}
-		pr_debug(" No of Write Bytes = %ld",
-						 p61_through_put_t.total_through_put_wbytes);
-		pr_debug(" Total Write Time (uSec) = %ld",
-						 p61_through_put_t.total_through_put_wtime);
-	} else {
-		pr_debug(" p61_stop_throughput_measurement: wrong type = %u", type);
-	}
-}
 
 /**
  * \ingroup spi_driver
@@ -353,11 +266,6 @@ static long p61_dev_ioctl(struct file *filp, unsigned int cmd,
 		// ret = nfc_dev_ioctl(filp, PN544_SET_DWNLD_STATUS, arg);
 		pr_debug(" P61_SET_DWNLD_STATUS: =%lu exit", arg);
 		break;
-	case P61_SET_THROUGHPUT:
-		p61_through_put_t.enable_through_put_measure = true;
-		pr_debug(" P61_SET_THROUGHPUT enable %d",
-						 p61_through_put_t.enable_through_put_measure);
-		break;
 	case P61_GET_ESE_ACCESS:
 		pr_debug(" P61_GET_ESE_ACCESS: enter");
 		// ret = nfc_dev_ioctl(filp, P544_GET_ESE_ACCESS, arg);
@@ -454,16 +362,12 @@ static ssize_t p61_dev_write(struct file *filp, const char *buf, size_t count,
 		mutex_unlock(&p61_dev->write_mutex);
 		return -EFAULT;
 	}
-	if (p61_through_put_t.enable_through_put_measure)
-		p61_start_throughput_measurement(WRITE_THROUGH_PUT);
 	/* Write data */
 	ret = spi_write(p61_dev->spi, &tx_buffer[0], count);
 	if (ret < 0) {
 		ret = -EIO;
 	} else {
 		ret = count;
-		if (p61_through_put_t.enable_through_put_measure)
-			p61_stop_throughput_measurement(WRITE_THROUGH_PUT, ret);
 	}
 
 	mutex_unlock(&p61_dev->write_mutex);
@@ -598,12 +502,6 @@ static ssize_t p61_dev_read(struct file *filp, char *buf, size_t count,
 			goto fail;
 		}
 	}
-
-	if (p61_through_put_t.enable_through_put_measure)
-		p61_start_throughput_measurement(READ_THROUGH_PUT);
-
-	if (p61_through_put_t.enable_through_put_measure)
-		p61_stop_throughput_measurement(READ_THROUGH_PUT, count);
 	pr_debug("total_count = %zu", count);
 
 	if (copy_to_user(buf, &rx_buffer[0], count)) {
@@ -881,7 +779,6 @@ static int p61_probe(struct spi_device *spi)
 	 * for reading.  it is cleared when all data has been read.
 	 */
 	p61_dev->irq_enabled = true;
-	p61_through_put_t.enable_through_put_measure = false;
 	irq_flags = IRQF_TRIGGER_RISING | IRQF_ONESHOT;
 
 	ret = request_irq(p61_dev->spi->irq, p61_dev_irq_handler, irq_flags,
