@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- *  Copyright 2023 NXP
+ *  Copyright 2023-2024 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -43,7 +43,8 @@ static void gpio_reset_guard_timer_callback(struct timer_list *t)
  * \ingroup		spi_driver
  * \brief		Initialising mutex
  */
-void ese_reset_init(void) {
+void ese_reset_init(void)
+{
 	mutex_init(&sResetTimer.reset_mutex);
 	timer_setup(&sResetTimer.timer, gpio_reset_guard_timer_callback, 0);
 }
@@ -52,7 +53,8 @@ void ese_reset_init(void) {
  * \ingroup		spi_driver
  * \brief		Deinitialising mutex
  */
-void ese_reset_deinit(void) {
+void ese_reset_deinit(void)
+{
 	mutex_destroy(&sResetTimer.reset_mutex);
 	del_timer(&sResetTimer.timer);
 }
@@ -73,7 +75,7 @@ static long start_gpio_reset_guard_timer(void)
 	if (!ret)
 		sResetTimer.in_progress = true;
 	else
-		pr_err("%s: Error in mod_timer, returned:'%d'\n", __func__, ret);
+		pr_err("%s: Error in mod_timer, returned:'%ld'\n", __func__, ret);
 	pr_debug("%s: exit\n", __func__);
 	return ret;
 }
