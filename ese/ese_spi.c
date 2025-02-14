@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- *  Copyright 2012-2023 NXP
+ *  Copyright 2012-2025 NXP
  *   *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -139,10 +139,10 @@ static int ese_dev_release(struct inode *inode, struct file *filp)
 {
 	struct p61_dev *p61_dev = NULL;
 
-	pr_debug("Enter %s: ESE driver release\n", __func__);
 	p61_dev = filp->private_data;
+	dev_dbg(p61_dev->nfcc_device, "Enter %s: ESE driver release\n", __func__);
 	nfc_ese_pwr(p61_dev->nfcc_data, ESE_RST_PROT_DIS);
-	pr_debug("Exit %s: ESE driver release\n", __func__);
+	dev_dbg(p61_dev->nfcc_device, "Exit %s: ESE driver release\n", __func__);
 	return 0;
 }
 
@@ -183,7 +183,7 @@ static int p61_dev_open(struct inode *inode, struct file *filp)
 	}
 	filp->private_data = p61_dev;
 
-	pr_debug("%s : Major No: %d, Minor No: %d\n", __func__, imajor(inode),
+	dev_dbg(p61_dev->nfcc_device, "%s : Major No: %d, Minor No: %d\n", __func__, imajor(inode),
 					 iminor(inode));
 
 	return 0;
@@ -211,7 +211,7 @@ static long p61_dev_ioctl(struct file *filp, unsigned int cmd,
 	int ret = 0;
 	struct p61_dev *p61_dev = NULL;
 
-	pr_debug("%s-Enter %u arg = %ld\n", __func__, cmd, arg);
+	// pr_debug("%s-Enter %u arg = %ld\n", __func__, cmd, arg);
 	p61_dev = filp->private_data;
 
 	switch (cmd) {
@@ -297,7 +297,7 @@ static long p61_dev_ioctl(struct file *filp, unsigned int cmd,
 		ret = -EINVAL;
 	}
 
-	pr_debug("%s-exit %u arg = %lu\n", __func__, cmd, arg);
+	dev_dbg(p61_dev->nfcc_device, "%s-exit %u arg = %lu\n", __func__, cmd, arg);
 	return ret;
 }
 
@@ -348,9 +348,9 @@ static ssize_t p61_dev_write(struct file *filp, const char *buf, size_t count,
 	struct p61_dev *p61_dev;
 	unsigned char tx_buffer[MAX_BUFFER_SIZE];
 
-	pr_debug("%s -Enter count %zu\n", __func__, count);
-
 	p61_dev = filp->private_data;
+
+	dev_dbg(p61_dev->nfcc_device, "%s -Enter count %zu\n", __func__, count);
 
 	mutex_lock(&p61_dev->write_mutex);
 	if (count > MAX_BUFFER_SIZE)
@@ -364,14 +364,13 @@ static ssize_t p61_dev_write(struct file *filp, const char *buf, size_t count,
 	}
 	/* Write data */
 	ret = spi_write(p61_dev->spi, &tx_buffer[0], count);
-	if (ret < 0) {
+	if (ret < 0)
 		ret = -EIO;
-	} else {
+	else
 		ret = count;
-	}
 
 	mutex_unlock(&p61_dev->write_mutex);
-	pr_debug("%s ret %d- Exit\n", __func__, ret);
+	dev_dbg(p61_dev->nfcc_device, "%s ret %d- Exit\n", __func__, ret);
 	return ret;
 }
 
@@ -391,7 +390,7 @@ static void p61_disable_irq(struct p61_dev *p61_dev)
 {
 	unsigned long flags;
 
-	pr_debug("Entry : %s\n", __func__);
+	// pr_debug("Entry : %s\n", __func__);
 
 	spin_lock_irqsave(&p61_dev->irq_enabled_lock, flags);
 	if (p61_dev->irq_enabled) {
@@ -400,7 +399,7 @@ static void p61_disable_irq(struct p61_dev *p61_dev)
 	}
 	spin_unlock_irqrestore(&p61_dev->irq_enabled_lock, flags);
 
-	pr_debug("Exit : %s\n", __func__);
+	// pr_debug("Exit : %s\n", __func__);
 }
 
 /**
@@ -418,13 +417,13 @@ static irqreturn_t p61_dev_irq_handler(int irq, void *dev_id)
 {
 	struct p61_dev *p61_dev = dev_id;
 
-	pr_debug("Entry : %s\n", __func__);
+	// pr_debug("Entry : %s\n", __func__);
 	p61_disable_irq(p61_dev);
 
 	/* Wake up waiting readers */
 	wake_up(&p61_dev->read_wq);
 
-	pr_debug("Exit : %s\n", __func__);
+	// pr_debug("Exit : %s\n", __func__);
 	return IRQ_HANDLED;
 }
 #endif
@@ -450,7 +449,7 @@ static ssize_t p61_dev_read(struct file *filp, char *buf, size_t count,
 	struct p61_dev *p61_dev = filp->private_data;
 	unsigned char rx_buffer[MAX_BUFFER_SIZE];
 
-	pr_debug("%s count %zu - Enter\n", __func__, count);
+	dev_dbg(p61_dev->nfcc_device, "%s count %zu - Enter\n", __func__, count);
 
 	mutex_lock(&p61_dev->read_mutex);
 	if (count > MAX_BUFFER_SIZE)
@@ -493,7 +492,7 @@ static ssize_t p61_dev_read(struct file *filp, char *buf, size_t count,
 			}
 		}
 #else
-		pr_debug(" %s P61_IRQ_ENABLE not Enabled\n", __func__);
+		dev_dbg(p61_dev->nfcc_device, " %s P61_IRQ_ENABLE not Enabled\n", __func__);
 #endif
 		ret = spi_read(p61_dev->spi, (void *)&rx_buffer[0], count);
 		if (ret < 0) {
@@ -502,21 +501,21 @@ static ssize_t p61_dev_read(struct file *filp, char *buf, size_t count,
 			goto fail;
 		}
 	}
-	pr_debug("total_count = %zu", count);
+	dev_dbg(p61_dev->nfcc_device, "total_count = %zu", count);
 
 	if (copy_to_user(buf, &rx_buffer[0], count)) {
 		pr_err("%s : failed to copy to user space\n", __func__);
 		ret = -EFAULT;
 		goto fail;
 	}
-	pr_debug("%s ret %d value %d Exit\n", __func__, ret, rx_buffer[0]);
+	dev_dbg(p61_dev->nfcc_device, "%s ret %d value %d Exit\n", __func__, ret, rx_buffer[0]);
 
 	mutex_unlock(&p61_dev->read_mutex);
 
 	return ret;
 
 fail:
-	pr_err("Error %s ret %d Exit\n", __func__, ret);
+	// pr_err("Error %s ret %d Exit\n", __func__, ret);
 	mutex_unlock(&p61_dev->read_mutex);
 	return ret;
 }
@@ -539,7 +538,7 @@ static int p61_hw_setup(struct p61_spi_platform_data *platform_data,
 {
 	int ret = -1;
 
-	pr_debug("Entry : %s\n", __func__);
+	dev_dbg(p61_dev->nfcc_device, "Entry : %s\n", __func__);
 #ifdef P61_IRQ_ENABLE
 	ret = gpio_request(platform_data->irq_gpio, "p61 irq");
 	if (ret < 0) {
@@ -805,7 +804,7 @@ err_exit0:
 	if (p61_dev != NULL)
 		kfree(p61_dev);
 err_exit:
-	pr_err("ERROR: Exit : %s ret %d\n", __func__, ret);
+	// pr_err("ERROR: Exit : %s ret %d\n", __func__, ret);
 	return ret;
 }
 
@@ -819,11 +818,11 @@ err_exit:
  *
  */
 
-static int p61_remove(struct spi_device *spi)
+static void p61_remove(struct spi_device *spi)
 {
 	struct p61_dev *p61_dev = p61_get_data(spi);
 
-	pr_debug("Entry : %s\n", __func__);
+	// pr_debug("Entry : %s\n", __func__);
 
 #ifdef P61_HARD_RESET
 	if (p61_regulator != NULL) {
@@ -847,8 +846,7 @@ static int p61_remove(struct spi_device *spi)
 		kfree(p61_dev);
 	}
 
-	pr_info("Exit : %s\n", __func__);
-	return 0;
+	// pr_info("Exit : %s\n", __func__);
 }
 
 #if DRAGON_P61
@@ -882,7 +880,7 @@ static struct spi_driver p61_driver = {
 
 static int __init p61_dev_init(void)
 {
-	pr_info("Entry : %s\n", __func__);
+	// pr_info("Entry : %s\n", __func__);
 
 	return spi_register_driver(&p61_driver);
 }
@@ -901,7 +899,7 @@ module_init(p61_dev_init);
 
 static void __exit p61_dev_exit(void)
 {
-	pr_info("Entry : %s\n", __func__);
+	// pr_info("Entry : %s\n", __func__);
 
 	spi_unregister_driver(&p61_driver);
 }
