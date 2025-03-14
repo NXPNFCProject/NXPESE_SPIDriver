@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- *  Copyright 2023-2024 NXP
+ *  Copyright 2023-2025 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@
  *
  ******************************************************************************/
 #include "ese_reset.h"
+#include "../nfc/device_log.h"
 #include <linux/jiffies.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -34,9 +35,9 @@ static void gpio_reset_guard_timer_callback(struct timer_list *t)
 {
 	struct reset_timer *sResetTimer = from_timer(sResetTimer, t, timer);
 
-	pr_debug("%s: entry\n", __func__);
+	print_debug("%s: entry\n", __func__);
 	sResetTimer->in_progress = false;
-	pr_debug("%s: exit with in_progress set to false\n", __func__);
+	print_debug("%s: exit with in_progress set to false\n", __func__);
 }
 
 /*!
@@ -69,14 +70,14 @@ static long start_gpio_reset_guard_timer(void)
 {
 	long ret;
 
-	pr_debug("%s: entry\n", __func__);
+	print_debug("%s: entry\n", __func__);
 	ret = mod_timer(&sResetTimer.timer,
 									jiffies + msecs_to_jiffies(ESE_GPIO_RST_GUARD_TIME_MS));
 	if (!ret)
 		sResetTimer.in_progress = true;
 	else
 		pr_err("%s: Error in mod_timer, returned:'%ld'\n", __func__, ret);
-	pr_debug("%s: exit\n", __func__);
+	print_debug("%s: exit\n", __func__);
 	return ret;
 }
 
@@ -90,7 +91,7 @@ int perform_ese_gpio_reset(int rst_gpio)
 	int ret = 0;
 
 	if (gpio_is_valid(rst_gpio)) {
-		pr_debug("%s: entry\n", __func__);
+		print_debug("%s: entry\n", __func__);
 		mutex_lock(&sResetTimer.reset_mutex);
 		if (sResetTimer.in_progress) {
 			pr_err("%s: gpio reset already in progress\n", __func__);
@@ -98,7 +99,7 @@ int perform_ese_gpio_reset(int rst_gpio)
 			mutex_unlock(&sResetTimer.reset_mutex);
 			return ret;
 		}
-		pr_debug("%s: entering gpio ese reset case\n", __func__);
+		print_debug("%s: entering gpio ese reset case\n", __func__);
 		ret = start_gpio_reset_guard_timer();
 		if (ret) {
 			mutex_unlock(&sResetTimer.reset_mutex);
@@ -106,13 +107,13 @@ int perform_ese_gpio_reset(int rst_gpio)
 			ret = -EINVAL;
 			return ret;
 		}
-		pr_debug(" eSE Domain Reset");
+		print_debug(" eSE Domain Reset");
 
 		gpio_set_value(rst_gpio, 0);
 		usleep_range(ESE_GPIO_RESET_WAIT_TIME_USEC,
 								 ESE_GPIO_RESET_WAIT_TIME_USEC + 100);
 		gpio_set_value(rst_gpio, 1);
-		pr_debug("%s: exit\n", __func__);
+		print_debug("%s: exit\n", __func__);
 		mutex_unlock(&sResetTimer.reset_mutex);
 	} else {
 		pr_err("%s not entering GPIO Reset, gpio value invalid : %x\n", __func__,
@@ -146,9 +147,9 @@ int ese_reset_gpio_setup(struct p61_spi_platform_data *platform_data)
 						 platform_data->rst_gpio);
 			goto fail_gpio;
 		}
-		pr_debug("Exit : %s\n", __func__);
+		print_debug("Exit : %s\n", __func__);
 	} else {
-		pr_debug("%s, gpio value invalid : %x\n", __func__,
+		print_debug("%s, gpio value invalid : %x\n", __func__,
 						 platform_data->rst_gpio);
 	}
 	return ret;
