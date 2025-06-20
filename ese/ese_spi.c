@@ -685,8 +685,8 @@ static int p61_probe(struct spi_device *spi)
 	unsigned int irq_flags;
 #endif
 
-	print_debug("%s chip select : %d , bus number = %d\n", __func__,
-					 spi->chip_select, spi->master->bus_num);
+	print_debug("%s chip select : %s", __func__,
+					 spi->chip_select);
 	memset(&platform_data1, 0x00, sizeof(struct p61_spi_platform_data));
 #if !DRAGON_P61
 	platform_data = spi->dev.platform_data;
