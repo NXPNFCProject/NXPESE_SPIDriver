@@ -14,4 +14,3 @@ config NXP_ESE_P73
 
 	  If you want NFC support, you should say Y here and
 	  also to your specific host controller driver.
-
