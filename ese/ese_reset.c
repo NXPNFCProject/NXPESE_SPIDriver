@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- *  Copyright 2023-2025 NXP
+ *  Copyright 2023-2026 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -33,7 +33,11 @@ static reset_timer_t sResetTimer;
  */
 static void gpio_reset_guard_timer_callback(struct timer_list *t)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 16, 0)
+	struct reset_timer *sResetTimer = timer_container_of(sResetTimer, t, timer);
+#else
 	struct reset_timer *sResetTimer = from_timer(sResetTimer, t, timer);
+#endif
 
 	print_debug("%s: entry\n", __func__);
 	sResetTimer->in_progress = false;
@@ -57,7 +61,12 @@ void ese_reset_init(void)
 void ese_reset_deinit(void)
 {
 	mutex_destroy(&sResetTimer.reset_mutex);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 16, 0)
+	timer_delete(&sResetTimer.timer);
+#else
 	del_timer(&sResetTimer.timer);
+#endif
+
 }
 
 

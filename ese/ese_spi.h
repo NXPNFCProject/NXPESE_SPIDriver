@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- *  Copyright 2012-2025 NXP
+ *  Copyright 2012-2026 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,6 +19,8 @@
  ******************************************************************************/
 #ifndef _ESE_SPI_H_
 #define _ESE_SPI_H_
+#include <linux/version.h>
+
 #define P61_MAGIC 0xEA
 #define P61_SET_PWR _IOW(P61_MAGIC, 0x01, long)
 #define P61_SET_DBG _IOW(P61_MAGIC, 0x02, long)
