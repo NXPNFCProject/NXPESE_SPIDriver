@@ -117,6 +117,7 @@ struct p61_dev {
 	bool irq_enabled;               /* flag to indicate irq is used */
 	unsigned char enable_poll_mode; /* enable the poll mode */
 	spinlock_t irq_enabled_lock;    /*spin lock for read irq */
+	ese_spi_transition_state_t ese_spi_transition_state; /* State of the driver */
 	struct device *nfcc_device; /*nfcc driver handle for driver to driver comm */
 	struct nfc_dev *nfcc_data;
 	const char *nfcc_name;
@@ -141,6 +142,7 @@ static int ese_dev_release(struct inode *inode, struct file *filp)
 
 	p61_dev = filp->private_data;
 	device_debug(p61_dev->nfcc_device, "Enter %s: ESE driver release\n", __func__);
+	p61_dev->ese_spi_transition_state = ESE_SPI_IDLE;
 	nfc_ese_pwr(p61_dev->nfcc_data, ESE_RST_PROT_DIS);
 	device_debug(p61_dev->nfcc_device, "Exit %s: ESE driver release\n", __func__);
 	return 0;
@@ -182,9 +184,13 @@ static int p61_dev_open(struct inode *inode, struct file *filp)
 		p61_dev->nfcc_device = nfc_dev;
 	}
 	filp->private_data = p61_dev;
-
-	device_debug(p61_dev->nfcc_device, "%s : Major No: %d, Minor No: %d\n", __func__, imajor(inode),
-					 iminor(inode));
+	if (p61_dev->ese_spi_transition_state == ESE_SPI_BUSY) {
+		pr_err("%s : ESE is busy \n", __func__);
+		return -EBUSY;
+	}
+	p61_dev->ese_spi_transition_state = ESE_SPI_BUSY;
+	device_debug(p61_dev->nfcc_device, "%s : Major No: %d, Minor No: %d state=%d\n", __func__, imajor(inode),
+		     iminor(inode), p61_dev->ese_spi_transition_state);
 
 	return 0;
 }
@@ -741,7 +747,7 @@ static int p61_probe(struct spi_device *spi)
 	p61_dev->p61_device.parent = &spi->dev;
 	p61_dev->irq_gpio = platform_data->irq_gpio;
 	p61_dev->rst_gpio = platform_data->rst_gpio;
-
+	p61_dev->ese_spi_transition_state = ESE_SPI_IDLE;
 	dev_set_drvdata(&spi->dev, p61_dev);
 
 	/* init mutex and queues */

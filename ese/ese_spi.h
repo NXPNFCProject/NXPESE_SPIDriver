@@ -61,6 +61,11 @@ struct p61_spi_platform_data {
 	unsigned int rst_gpio;
 };
 
+typedef enum ese_spi_transition_state {
+	ESE_SPI_IDLE = 0x00,
+	ESE_SPI_BUSY
+} ese_spi_transition_state_t;
+
 #ifdef pr_fmt
 #undef pr_fmt
 #endif
